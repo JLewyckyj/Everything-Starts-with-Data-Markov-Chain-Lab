@@ -1,0 +1,204 @@
+---
+title: "ESWD Lab2"
+author: "JLewyckyj"
+date: "11/10/2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+setwd("/nfs/home/jsl2985/z/Everything Starts with Data/Lab2")
+library(caret)
+
+redwine <- read.table("redwine.txt", header=TRUE)
+```
+
+#1
+
+```{r}
+mean(redwine$RS, na.rm=TRUE)
+mean(redwine$SD, na.rm=TRUE)
+```
+
+The mean of RS (Residual Sugar) is 2.538.
+<br>
+The mean of SD (Total Sulfur Dioxide) is 46.298.
+
+#2
+
+```{r}
+#Create dataset without NAs for SD
+redwine.obs <- subset(redwine, !is.na(redwine$SD))
+```
+
+The SD and FS columns for redwine.obs are the vectors for the data without missing values for SD.
+
+```{r}
+ABC <- lm(SD ~ FS, redwine.obs)
+summary(ABC)
+coefficients(ABC)
+```
+
+The coefficients for the model are 13.19 for B0 and 2.09 for B1.
+
+#3
+
+```{r}
+#Create dataset with only rows for missing values of SD
+redwine.missing <- subset(redwine, is.na(redwine$SD))
+
+#Predict the missing values of SD using values of FS
+redwine.missing$SD.predictions <- predict(ABC, redwine.missing)
+
+print(redwine.missing$SD.predictions)
+```
+
+```{r}
+#Impute SD.predictions for the missing values of SD
+
+redwine.missing$SD <- redwine.missing$SD.predictions #Assign predictions column to SD
+redwine.missing <- redwine.missing[,1:12] #Remove predictions column
+
+#Re-combine datasets
+
+redwine.new <- rbind(redwine.obs, redwine.missing)
+
+#New average of SD
+
+mean(redwine.new$SD)
+```
+
+The new mean for SD is 46.302.
+
+#4
+
+```{r}
+#Average value imputation function
+
+avg.imp <- function (a, avg){
+        missing <- is.na(a)
+        imputed <- a
+        imputed[missing] <- avg
+        return (imputed)
+}
+
+RS.avg <- mean(redwine.new$RS, na.rm=TRUE)
+
+redwine.new$RS <- avg.imp(redwine.new$RS, RS.avg) #Impute missing values with the average for RS
+
+mean(redwine.new$RS)
+```
+
+The mean remains the same for RS at 2.538.
+
+#5
+
+```{r}
+winemodel <- lm(QA ~ ., redwine.new) #Multiple regression model
+
+winemodel$coefficients #Print out coefficients
+```
+
+B0: 47.20
+<br>
+B1 for FA: 0.068
+<br>
+B2 for VA: -1.097
+<br>
+B3 for CA: -0.179
+<br>
+B4 for RS: 0.0259
+<br>
+B5 for CH: -1.631
+<br>
+B6 for FS: 0.0035
+<br>
+B7 for SD: -0.0029
+<br>
+B8 for DE: -44.817
+<br>
+B9 for PH: 0.036
+<br>
+B10 for SU: 0.945
+<br>
+B11 for AL: 0.247
+
+#6
+
+```{r}
+summary(winemodel)
+```
+
+PH is least likely to be related to QA on account of it's 0.414 p-value, not significant at any level.
+
+#7
+
+```{r}
+# Define training control
+set.seed(123) 
+train.control <- trainControl(method = "cv", number = 5)
+# Train the model
+cv_model <- train(QA ~ ., data = redwine.new, method = "lm",
+               trControl = train.control)
+# Summarize the results
+print(cv_model)
+
+summary(cv_model)
+```
+
+```{r}
+#Use the cross-validated model to predict QA in the redwine.new dataframe
+
+redwine.new$predictions <- predict(cv_model, redwine.new) #Create predictions column
+redwine.new$error <- abs(redwine.new$QA - redwine.new$predictions) #Define error as the absolute value of the difference between QA and the prediction
+
+mean(redwine.new$error)
+```
+
+The average absolute value of the error between QA and the prediction given by the cross-validated model is 0.501.
+
+#8
+
+```{r}
+mPH <- mean(redwine.new$PH)
+print(mPH)
+
+sdPH <- sd(redwine.new$PH)
+print(sdPH)
+```
+
+The mean of PH is 3.306.
+<br>
+The standard deviation of PH is 0.392.
+
+```{r}
+t1 <- mPH - 3*sdPH #Set thresholds for what should be removed
+t2 <- mPH + 3*sdPH
+
+redwine2 <- subset(redwine.new, PH > t1 & PH < t2) #Keep only observations within the threshold for PH
+
+dim(redwine2)
+```
+
+There are 1580 rows, so 19 were removed due to outliers in PH.
+
+#9
+
+```{r}
+redwine2 <- redwine2[,c(1:12)] #Remove prediction and error columns from the CV model
+
+winemodel2 <- lm(QA ~ ., redwine2)
+summary(winemodel2)
+```
+
+This model is likely better than the previous one, with a higher F-statistic (81.21 vs. 80.6), and a higher R-squared (0.3629 vs. 0.3584).
+
+Based on p-values, the 5 most likely attributes to be related with QA are: <br>
+1: AL / Alcohol (p-value < 2e-16) <br> 
+2: VA / Volatile Acidity (p-value < 2e-16) <br>
+3: SU / Sulphates (p-value = 3.46e-15) <br>
+4: CH / Chlorides (p-value = 6.60e-06) <br>
+5: SD / Total Sulfur Dioxide (p-value = 2.16e-05) <br>
