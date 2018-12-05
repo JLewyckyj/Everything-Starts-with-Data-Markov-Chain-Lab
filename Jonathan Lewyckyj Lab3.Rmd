@@ -1,0 +1,103 @@
+---
+title: "Jonathan Lewyckyj Lab3"
+author: "JLewyckyj"
+date: "12/4/2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+```
+
+```{r}
+setwd("/nfs/home/jsl2985/z/Everything Starts with Data/Lab3")
+gas <- read.csv("gas_mileage.csv")
+car <- read.csv("car.csv")
+library(quantreg)
+library(e1071)
+```
+
+#Problem 1
+
+##A
+
+Markov Chain Monte Carlo allow us to sample from a probability distribution that is difficult to sample directly. By observing the Markov chain after a certain number of steps, we can get a sample of the desired distribution. The larger the number of steps taken, the sample distribution will become closer to the actual desired distribution.<br><br>
+
+##B
+
+The Metropolis algorithm is a special case of the Metropolis-Hastings algorithm. In the Metropolis algorithm, we start with an initial value Theta0 from the distribution p(Theta). Then, we draw a candidate point Theta_star from the proposal distribution q(. | Theta t-1), where q(. | .) has to be symmetric. We accept Theta_star (set Theta t = Theta_star) with probability Alpha = min{1, p(Theta*) / p(Theta t-1)}. Otherwise, Theta t-1 is kept, and we go back to a new candidate point.<br>
+In the Metropolis-Hastings algorithm, it generalizes the Metropolis algorithm, where q(. | .) does not have to be symmetric. Here, Alpha = min{1, [p(Theta_star) q(Theta t-1 | Theta_star)] / [p(Theta t-1) q(Theta* | Theta t-1)]}<br><br>
+
+##C
+
+Both Ridge and Lasso regression are intended to deal with regression instances where there are too many predictor variables and multicollinearity for those predictors. With highly-correlated predictor variables, the coefficient of any one variable depends on which other predictor variables are in the model and which ones are left out. Ridge regression subjects the regression to a penalty Lambda: Sum(Bj^2). As Lambda increases, the ridge regression coefficients are shrunk to zero. Lasso regression subjects the regression to a penalty Lambda: Sum( |Bj|), which may force one or more coefficients to be exactly zero.<br><br>
+
+##D
+
+The IIA assumption (Independence of irrelevant alternatives) states that the ratio of the probabilities of choosing two alternatives is independent of the presence or attributes of any other alternative. An advantage of this assumption is that the model can be applied in cases where different observations in the population face different sets of alternatives.<br><br>
+
+
+#Problem 2
+
+##A
+
+```{r}
+fit1 <- rq(Mpg ~ ., tau=c(0.05, 0.10, 0.15, 0.20, 0.25, 0.30, 0.35, 0.40, 0.45, 0.50, 0.55, 0.60, 0.65, 0.70, 0.75, 0.80, 0.85, 0.90, 0.95), data=gas)
+summary(fit1)
+```
+
+Here, I've fit a quantile regression regressing Mpg on the other predictors, predicting Mpg at various quantiles in the distribution. The summary shows the regression model for each quantile (tau).<br><br>
+
+##B
+
+```{r}
+plot(fit1, mfrow=c(1,2))
+```
+
+The line plots show the value of the coefficients at each quantile of the distribution of Mpg. The dotted red line shows the average coefficient value.<br><br>
+
+##C
+
+For Trans._type, Trans._type = 1 and Trans._type = 0 are pretty close in their effects on Mpg at the beginning of the distribution. Then, in the middle of the distribution, Trans._type = 1 results in higher values of Mpg. Finally, at the end of the distribution, Trans._type = 1 results in lower values of Mpg. The mean effect of Trans._type is near 0, but as we can see, the effect varies depending on where we are in the Mpg distribution.<br><br>
+
+Overall, the weight of the car has a negative effect on Mpg. The effect of weight on Mpg becomes most negative at the 60th quantile. But at the very end, we can see that the effect is actually near 0, and even slightly positive.<br><br>
+
+Overall, Carb_barrels has a positive effect on Mpg, but that effect generally decreases as you look at larger and larger quantiles, ultimately ending up around 0.<br><br>
+
+##D
+
+```{r}
+fit2 <- rq(Mpg ~ ., tau=0.50, data=gas)
+summary(fit2, se = "boot")
+```
+
+Here, we've fit the median quantile regression using the bootstrap method for computing the standard errors of the regression coefficients. None of the coefficients are statistically significant at the 5% level.<br><br>
+
+#Problem 3
+
+##A
+
+```{r}
+svm <- svm(factor(y) ~ ., data=car)
+summary(svm)
+```
+
+Here, we've fit an SVM on the car data. There are 27 support vectors, and a gamma (distance to hyperplane) of 0.50.<br><br>
+
+##B
+
+```{r}
+plot(svm, car, income~car_age)
+```
+
+The area shaded pink shows the combination of income and car_age that would be predicted to result in the family buying a new car. The area shaded teal shows the combination that would be predicted to result in not buying a new car.<br><br>
+
+##C
+
+```{r}
+newdata <- data.frame(income=50, car_age=5)
+newdata$prediction <- predict(svm, newdata, type="response")
+print(newdata$prediction)
+```
+
+For a family with income=50 and car_age=5, our SVM predicts a class of y=1, or 'Yes' that they will purchase a new car.
